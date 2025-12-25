@@ -16,103 +16,109 @@ pipeline {
         // Fail fast on first failure in parallel
         parallelsAlwaysFailFast()
         // Keep build logs clean
-        ansiColor('xterm')
-        timeout(time: 30, unit: 'MINUTES')
-    }
+            agent any
 
-    stages {
-        stage('Checkout') {
-            steps {
-                // Checkout source code
-                checkout scm
+            options {
+                buildDiscarder(logRotator(numToKeepStr: '10'))
+                timestamps()
+                ansiColor('xterm')
+                disableConcurrentBuilds()
+                timeout(time: 60, unit: 'MINUTES')
             }
-        }
 
-        stage('Setup Java & Maven') {
-            steps {
-                // Use Jenkins tool installers for Java and Maven
-                tool name: 'jdk11', type: 'jdk'
-                tool name: 'maven3', type: 'maven'
-                // Set JAVA_HOME and MAVEN_HOME for later steps
-                withEnv(["JAVA_HOME=${tool 'jdk11'}", "PATH+JAVA=${tool 'jdk11'}/bin", "MAVEN_HOME=${tool 'maven3'}", "PATH+MAVEN=${tool 'maven3'}/bin"]) {
-                    sh 'java -version'
-                    sh 'mvn -version'
-                }
+            parameters {
+                choice(name: 'ENV', choices: ['dev', 'qa', 'stage'], description: 'Target environment')
+                string(name: 'TAGS', defaultValue: '', description: 'TestNG groups or Cucumber tags (comma-separated)')
+                string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch to build')
             }
-        }
 
-        stage('API Health Check') {
-            steps {
-                // Fail-fast health check (e.g., ping a health endpoint)
-                script {
-                    def healthUrl = getHealthUrl(params.ENV) // Implement this function in shared library or inline
-                    def response = sh(script: "curl -s -o /dev/null -w \"%{http_code}\" ${healthUrl}", returnStdout: true).trim()
-                    if (response != '200') {
-                        error "API health check failed for ${params.ENV} (HTTP $response)"
+            environment {
+                MAVEN_OPTS = '-Dmaven.test.failure.ignore=false'
+                ALLURE_RESULTS = 'allure-results'
+                ALLURE_REPORT = 'allure-report'
+                // Example: CREDENTIALS_ID = credentials('my-jenkins-secret')
+            }
+
+            stages {
+                stage('Checkout') {
+                    steps {
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: [[name: "*/${params.BRANCH}"]],
+                            userRemoteConfigs: [[url: 'https://github.com/ekailaspatil19051979/RestAssured-data-driven-tests.git']]
+                        ])
                     }
                 }
-            }
-        }
 
-        stage('Run API Tests') {
-            parallel {
-                stage('Smoke Tests') {
+                stage('Build') {
                     steps {
-                        withEnv(["JAVA_HOME=${tool 'jdk11'}", "PATH+JAVA=${tool 'jdk11'}/bin", "MAVEN_HOME=${tool 'maven3'}", "PATH+MAVEN=${tool 'maven3'}/bin"]) {
-                            // Pass environment and secrets as system properties
-                            withCredentials([
-                                // Example: string(credentialsId: 'jenkins-api-token-id', variable: 'API_TOKEN')
-                            ]) {
-                                sh 'mvn test -Dgroups=smoke -Denv=${ENV} -DsuiteXmlFile=testng.xml'
+                        sh 'mvn clean compile -B'
+                    }
+                }
+
+                stage('Test Execution') {
+                    steps {
+                        script {
+                            def testCmd = "mvn test -B -Denv=${params.ENV}"
+                            if (params.TAGS?.trim()) {
+                                // For TestNG groups
+                                testCmd += " -Dgroups=${params.TAGS}"
+                                // For Cucumber tags (if using cucumber)
+                                // testCmd += " -Dcucumber.options=\"--tags ${params.TAGS}\""
                             }
+                            // Enable parallel execution via surefire config
+                            sh testCmd
+                        }
+                    }
+                    post {
+                        always {
+                            junit '**/target/surefire-reports/*.xml'
+                            archiveArtifacts artifacts: '**/target/*.log, **/target/screenshots/**, **/allure-results/**', allowEmptyArchive: true
                         }
                     }
                 }
-                stage('Regression Tests') {
+
+                stage('Report Generation') {
                     steps {
-                        withEnv(["JAVA_HOME=${tool 'jdk11'}", "PATH+JAVA=${tool 'jdk11'}/bin", "MAVEN_HOME=${tool 'maven3'}", "PATH+MAVEN=${tool 'maven3'}/bin"]) {
-                            withCredentials([
-                                // Example: string(credentialsId: 'jenkins-api-token-id', variable: 'API_TOKEN')
-                            ]) {
-                                sh 'mvn test -Dgroups=regression -Denv=${ENV} -DsuiteXmlFile=testng.xml'
-                            }
-                        }
+                        // Allure report generation
+                        sh 'mvn allure:report'
+                        publishHTML(target: [
+                            reportName: 'Allure Report',
+                            reportDir: "${env.ALLURE_REPORT}",
+                            reportFiles: 'index.html',
+                            keepAll: true
+                        ])
                     }
                 }
-                // Add more groups as needed
+
+                stage('Archive Artifacts') {
+                    steps {
+                        archiveArtifacts artifacts: '**/target/*.log, **/target/screenshots/**, **/allure-results/**, **/allure-report/**', allowEmptyArchive: true
+                    }
+                }
+            }
+
+            post {
+                always {
+                    cleanWs()
+                }
+                success {
+                    script {
+                        currentBuild.result = 'SUCCESS'
+                    }
+                    // notifySlack('SUCCESS')
+                }
+                unstable {
+                    script {
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                    // notifySlack('UNSTABLE')
+                }
+                failure {
+                    script {
+                        currentBuild.result = 'FAILURE'
+                    }
+                    // notifySlack('FAILURE')
+                }
             }
         }
-
-        stage('Publish Reports') {
-            steps {
-                // Publish TestNG and Allure reports
-                junit '**/target/surefire-reports/*.xml'
-                allure includeProperties: false, jdk: '', results: [[path: 'target/allure-results']]
-            }
-        }
-    }
-
-    post {
-        always {
-            // Archive test results and logs
-            archiveArtifacts artifacts: '**/target/surefire-reports/*.xml', allowEmptyArchive: true
-        }
-        failure {
-            // Send notification on failure (e.g., email, Slack)
-            mail to: 'team@example.com',
-                 subject: "API Test Failure: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
-                 body: "Build failed. Check Jenkins for details: ${env.BUILD_URL}"
-            // Or use Slack plugin, etc.
-        }
-    }
-}
-
-// Helper function for health check URL (replace with your logic or shared library)
-def getHealthUrl(env) {
-    switch(env) {
-        case 'qa': return 'https://qa.example.com/health'
-        case 'uat': return 'https://uat.example.com/health'
-        case 'staging': return 'https://staging.example.com/health'
-        default: error("Unknown environment: $env")
-    }
-}

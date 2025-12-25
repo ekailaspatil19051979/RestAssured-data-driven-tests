@@ -65,3 +65,57 @@ This project demonstrates a data-driven API testing framework using Rest Assured
 - Add more data to `testdata.csv` for data-driven tests
 - Add authentication logic in `BaseTest` if needed
 - Add schema validation and security tests as required
+
+## Jenkins CI/CD Integration
+
+### Maven Command Examples
+- **Standard TestNG run:**
+  ```sh
+  mvn test -Denv=qa -Dgroups=smoke
+  ```
+- **Cucumber run:**
+  ```sh
+  mvn test -Denv=qa -Dcucumber.options="--tags @smoke"
+  ```
+- **Parallel execution:**
+  Configure in `pom.xml`:
+  ```xml
+  <parallel>methods</parallel>
+  <threadCount>4</threadCount>
+  ```
+  Or via CLI:
+  ```sh
+  mvn test -Denv=qa -Dgroups=smoke -Dsurefire.threadCount=4 -Dsurefire.parallel=methods
+  ```
+
+### Jenkins Job Configuration Steps
+1. **Create Pipeline Job**
+   - Job type: Pipeline
+   - Pipeline script from SCM: point to your repo and Jenkinsfile
+2. **Parameters**
+   - Add `ENV`, `TAGS`, `BRANCH` as parameters
+3. **Credentials**
+   - Store secrets (API keys, tokens) in Jenkins Credentials
+   - Reference via `withCredentials` or `environment` block
+4. **Allure Plugin**
+   - Install Allure Jenkins plugin for report publishing
+5. **Notifications**
+   - Configure Email/Slack/MS Teams plugins
+   - Add notification steps in `post` block
+
+### Best Practices & Common Pitfalls
+- Parameterize environment/branch/tags for flexibility
+- Externalize configs (e.g., `src/test/resources/application.properties`) and load by `-Denv`
+- Never hardcode secrets; use Jenkins credentials
+- Use Surefire/TestNG parallel settings for scalability
+- Always archive logs, reports, and screenshots
+- Mark build UNSTABLE for test failures, FAILURE for infra/compilation issues
+- Integrate with Slack/Email/MS Teams for build status
+- Mask sensitive data using Jenkins plugins
+- Use `cleanWs()` to avoid disk bloat
+- Set reasonable timeouts to avoid hanging builds
+- Use `buildDiscarder` to manage disk usage
+
+---
+
+For more details, see the Jenkinsfile in the project root.
