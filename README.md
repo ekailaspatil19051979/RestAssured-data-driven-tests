@@ -103,6 +103,31 @@ This project demonstrates a data-driven API testing framework using Rest Assured
    - Configure Email/Slack/MS Teams plugins
    - Add notification steps in `post` block
 
+### Jenkins Build Parameters
+
+When configuring your Jenkins Pipeline job, add the following build parameters for flexible execution:
+
+- **ENV** (Choice Parameter):
+  - Description: Target environment for test execution
+  - Choices: `dev`, `qa`, `stage`
+
+- **TAGS** (String Parameter):
+  - Description: TestNG groups or Cucumber tags (comma-separated)
+  - Example: `smoke,regression` or `@api,@smoke`
+
+- **BRANCH** (String Parameter):
+  - Description: Git branch to build
+  - Default: `main`
+  - Example: `main`, `develop`, `release/1.0`
+
+These parameters are referenced in the Jenkinsfile and allow you to control which environment, test groups/tags, and branch are used for each build.
+
+**How to add in Jenkins UI:**
+1. Go to your Pipeline job → Configure.
+2. Under "This project is parameterized", click "Add Parameter" and select the appropriate type (Choice or String).
+3. Fill in the name, description, and values as above.
+4. Save the job.
+
 ### Best Practices & Common Pitfalls
 - Parameterize environment/branch/tags for flexibility
 - Externalize configs (e.g., `src/test/resources/application.properties`) and load by `-Denv`
