@@ -4,7 +4,6 @@ pipeline {
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timestamps()
-        ansiColor('xterm')
         disableConcurrentBuilds()
         timeout(time: 60, unit: 'MINUTES')
     }
@@ -35,19 +34,23 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'mvn clean compile -B'
+                ansiColor('xterm') {
+                    sh 'mvn clean compile -B'
+                }
             }
         }
 
         stage('Test Execution') {
             steps {
-                script {
-                    def testCmd = "mvn test -B -Denv=${params.ENV}"
-                    if (params.TAGS?.trim()) {
-                        testCmd += " -Dgroups=${params.TAGS}"
-                        // testCmd += " -Dcucumber.options=\"--tags ${params.TAGS}\""
+                ansiColor('xterm') {
+                    script {
+                        def testCmd = "mvn test -B -Denv=${params.ENV}"
+                        if (params.TAGS?.trim()) {
+                            testCmd += " -Dgroups=${params.TAGS}"
+                            // testCmd += " -Dcucumber.options=\"--tags ${params.TAGS}\""
+                        }
+                        sh testCmd
                     }
-                    sh testCmd
                 }
             }
             post {
@@ -60,13 +63,15 @@ pipeline {
 
         stage('Report Generation') {
             steps {
-                sh 'mvn allure:report'
-                publishHTML(target: [
-                    reportName: 'Allure Report',
-                    reportDir: "${env.ALLURE_REPORT}",
-                    reportFiles: 'index.html',
-                    keepAll: true
-                ])
+                ansiColor('xterm') {
+                    sh 'mvn allure:report'
+                    publishHTML(target: [
+                        reportName: 'Allure Report',
+                        reportDir: "${env.ALLURE_REPORT}",
+                        reportFiles: 'index.html',
+                        keepAll: true
+                    ])
+                }
             }
         }
 
