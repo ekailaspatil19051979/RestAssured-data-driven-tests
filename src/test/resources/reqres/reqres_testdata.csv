@@ -1,0 +1,6 @@
+name,job,expectedStatus
+Alice,Engineer,201
+Bob,Software Engineer,201
+Joe,Manager,201
+None,,400
+None,Engineer,400

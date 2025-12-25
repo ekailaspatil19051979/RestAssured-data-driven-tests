@@ -1,0 +1,18 @@
+Required test data for Reqres API scenarios:
+
+Sheet: users
+| name      | job                | expectedStatus | method | userId |
+|-----------|--------------------|---------------|--------|--------|
+| John Doe  | Software Engineer  | 201           | POST   |        |
+| Jane Doe  | Product Manager    | 200           | PUT    | 1      |
+|           |                    | 204           | DELETE | 1      |
+
+Sheet: get_users
+| userId | expectedStatus |
+|--------|----------------|
+| 1      | 200            |
+|        | 200            |
+
+Instructions:
+- Sheet 'users': For POST, provide name/job; for PUT, provide userId/name/job; for DELETE, provide userId.
+- Sheet 'get_users': For GET /users/{userId}, provide userId; for GET /users, leave userId blank.

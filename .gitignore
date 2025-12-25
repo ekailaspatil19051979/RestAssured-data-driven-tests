@@ -1,0 +1,25 @@
+# Compiled files
+/target/
+
+# Logs
+*.log
+
+# IDE files
+/.idea/
+*.iml
+*.ipr
+*.iws
+*.class
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Maven wrapper
+.mvn/
+mvnw
+mvnw.cmd
+
+# Allure results
+allure-results/
+allure-report/
